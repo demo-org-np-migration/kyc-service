@@ -1,0 +1,30 @@
+{
+  "name": "kyc-service",
+  "version": "1.0.0",
+  "description": "Onboarding KYC: documento -> S3 -> Veridoc -> ledger-core -> kyc-events",
+  "private": true,
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.637.0",
+    "@aws-sdk/client-sqs": "^3.637.0",
+    "@cauri/commons": "github:demo-org-np-migration/cauri-commons-js#v1.2.0",
+    "fastify": "^4.28.1",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "aws-sdk-client-mock": "^4.0.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
