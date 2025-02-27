@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kyc-service
+  labels:
+    app.kubernetes.io/name: kyc-service
+    app.kubernetes.io/part-of: cauri
+    cauri.io/team: risk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kyc-service
+        app.kubernetes.io/part-of: cauri
+        cauri.io/team: risk
+    spec:
+      containers:
+        - name: kyc-service
+          image: ghcr.io/demo-org-np-migration/kyc-service:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: kyc-service-config
+          env:
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-client-kyc-service
+                  key: client_secret
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: VERIDOC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyc-service-secrets
+                  key: VERIDOC_API_KEY
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20

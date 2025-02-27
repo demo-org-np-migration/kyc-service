@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kyc-service
+  labels:
+    app.kubernetes.io/name: kyc-service
+    app.kubernetes.io/part-of: cauri
+    cauri.io/team: risk
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

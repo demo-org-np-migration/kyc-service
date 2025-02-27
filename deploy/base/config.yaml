@@ -1,0 +1,12 @@
+SERVICE_NAME=kyc-service
+ENV=staging
+PORT=8080
+LOG_LEVEL=info
+KEYCLOAK_ISSUER=http://keycloak.platform.svc:8080/realms/cauri-staging
+KEYCLOAK_CLIENT_ID=kyc-service
+AWS_ENDPOINT_URL=http://localstack.platform.svc:4566
+AWS_REGION=us-east-1
+S3_BUCKET_PREFIX=cauri-staging-
+SQS_QUEUE_PREFIX=staging-
+VERIDOC_URL=http://sandbox.veridoc-id.com
+LEDGER_CORE_URL=http://ledger-core:8080
