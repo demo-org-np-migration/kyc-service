@@ -13,8 +13,14 @@ export function buildServer() {
   app.get('/health', async () => ({ status: 'ok' }));
   registerMetrics(app);
 
-  // El hook de auth queda encapsulado acá adentro: solo corre para las rutas de
-  // /v1/kyc, no para /health ni /metrics.
+  // @cauri/commons@1.2.1 envuelve auth.fastify() con fastify-plugin: el hook onRequest
+  // se registra en el scope que lo llama (acá, "secured"), no en un hijo propio del
+  // plugin de auth. Por eso alcanza a applicationsRoutes, que es su hermano dentro de
+  // "secured" (antes de 1.2.1 el hook quedaba atrapado en el plugin de auth y las rutas
+  // de /v1/kyc quedaban sin proteger: CVE interno, ver postmortem).
+  // Ese mismo mecanismo es la razón por la que auth y las rutas van en un sub-app
+  // aparte en vez de directo en `app`: si los registrábamos ahí, el hook se hubiera
+  // colado también a /health y /metrics.
   app.register(async (secured) => {
     await secured.register(auth.fastify());
     await secured.register(applicationsRoutes);

@@ -16,7 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",
     "@aws-sdk/client-sqs": "^3.637.0",
-    "@cauri/commons": "github:demo-org-np-migration/cauri-commons-js#v1.2.0",
+    "@cauri/commons": "github:demo-org-np-migration/cauri-commons-js#v1.2.1",
     "fastify": "^4.28.1",
     "prom-client": "^15.1.3"
   },
