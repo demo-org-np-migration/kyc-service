@@ -47,7 +47,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: kyc-service-secrets
-                  key: VERIDOC_API_KEY
+                  key: veridoc_api_key
           resources:
             requests:
               cpu: 100m
