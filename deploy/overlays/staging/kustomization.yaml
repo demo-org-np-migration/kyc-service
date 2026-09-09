@@ -4,21 +4,22 @@ kind: Kustomization
 namespace: staging
 
 resources:
-  - ../../base
+- ../../base
 
 configMapGenerator:
-  - name: kyc-service-config
-    behavior: merge
-    literals:
-      - ENV=staging
-      - KEYCLOAK_ISSUER=http://keycloak.platform.svc:8080/realms/cauri-staging
-      - VERIDOC_URL=http://sandbox.veridoc-id.com
-      - AWS_ENDPOINT_URL=http://localstack.platform.svc:4566
-      - AWS_REGION=us-east-1
-      - S3_BUCKET_PREFIX=cauri-staging-
-      - SQS_QUEUE_PREFIX=staging-
-      - LEDGER_CORE_URL=http://ledger-core.staging.svc:8080
+- behavior: merge
+  literals:
+  - ENV=staging
+  - KEYCLOAK_ISSUER=http://keycloak.platform.svc:8080/realms/cauri-staging
+  - VERIDOC_URL=http://sandbox.veridoc-id.com
+  - AWS_ENDPOINT_URL=http://localstack.platform.svc:4566
+  - AWS_REGION=us-east-1
+  - S3_BUCKET_PREFIX=cauri-staging-
+  - SQS_QUEUE_PREFIX=staging-
+  - LEDGER_CORE_URL=http://ledger-core.staging.svc:8080
+  name: kyc-service-config
 
 images:
-  - name: ghcr.io/demo-org-np-migration/kyc-service
-    newTag: latest
+- name: ghcr.io/demo-org-np-migration/kyc-service
+  newName: ghcr.io/demo-org-np-migration/kyc-service
+  newTag: sha-970fef3
