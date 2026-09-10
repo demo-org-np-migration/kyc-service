@@ -76,7 +76,7 @@ jobs:
 
       - name: set prod image tag
         working-directory: deploy/overlays/prod
-        run: kustomize edit set image ghcr.io/demo-org-np-migration/kyc-service=ghcr.io/demo-org-np-migration/kyc-service:${{ github.ref_name }}
+        run: kustomize edit set image ghcr.io/demo-org-np-migration/kyc-service=ghcr.io/demo-org-np-migration/kyc-service:${{ needs.build-push.outputs.sha_tag }}
 
       - name: commit prod overlay
         run: |
