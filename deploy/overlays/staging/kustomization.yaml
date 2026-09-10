@@ -22,4 +22,4 @@ configMapGenerator:
 images:
 - name: ghcr.io/demo-org-np-migration/kyc-service
   newName: ghcr.io/demo-org-np-migration/kyc-service
-  newTag: sha-970fef3
+  newTag: sha-5da0d80
