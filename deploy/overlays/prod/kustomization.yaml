@@ -4,21 +4,22 @@ kind: Kustomization
 namespace: prod
 
 resources:
-  - ../../base
+- ../../base
 
 configMapGenerator:
-  - name: kyc-service-config
-    behavior: merge
-    literals:
-      - ENV=prod
-      - KEYCLOAK_ISSUER=http://keycloak.platform.svc:8080/realms/cauri-prod
-      - VERIDOC_URL=http://api.veridoc-id.com
-      - AWS_ENDPOINT_URL=http://localstack.platform.svc:4566
-      - AWS_REGION=us-east-1
-      - S3_BUCKET_PREFIX=cauri-prod-
-      - SQS_QUEUE_PREFIX=prod-
-      - LEDGER_CORE_URL=http://ledger-core.prod.svc:8080
+- behavior: merge
+  literals:
+  - ENV=prod
+  - KEYCLOAK_ISSUER=http://keycloak.platform.svc:8080/realms/cauri-prod
+  - VERIDOC_URL=http://api.veridoc-id.com
+  - AWS_ENDPOINT_URL=http://localstack.platform.svc:4566
+  - AWS_REGION=us-east-1
+  - S3_BUCKET_PREFIX=cauri-prod-
+  - SQS_QUEUE_PREFIX=prod-
+  - LEDGER_CORE_URL=http://ledger-core.prod.svc:8080
+  name: kyc-service-config
 
 images:
-  - name: ghcr.io/demo-org-np-migration/kyc-service
-    newTag: latest
+- name: ghcr.io/demo-org-np-migration/kyc-service
+  newName: ghcr.io/demo-org-np-migration/kyc-service
+  newTag: v1.0.0
