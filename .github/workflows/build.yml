@@ -9,6 +9,9 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # Los overlays los escribe nullplatform al desplegar (un PR por deploy): ese cambio no es código nuevo y no tiene
+    # que construir otra imagen ni otra release.
+    paths-ignore: ["deploy/overlays/**"]
 
 env:
   IMAGE: ghcr.io/demo-org-np-migration/kyc-service
