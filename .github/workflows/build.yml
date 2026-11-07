@@ -1,87 +1,134 @@
 name: build
 
+# nullplatform (modo full): este workflow construye la imagen (amd64 y arm64) y la registra en nullplatform como build,
+# asset y release. El deploy lo hace nullplatform: se pide desde nullplatform, pasa por su checklist y nullplatform
+# escribe el tag en `deploy/overlays/<env>/kustomization.yaml` de este repo con un PR que abre y mergea; Argo CD lo aplica como siempre.
+# Antes este workflow escribía el tag él mismo (los jobs `deploy-*` con `kustomize edit set image`); ahora eso lo hace nullplatform.
+
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
 
-permissions:
-  contents: write
-  packages: write
+env:
+  IMAGE: ghcr.io/demo-org-np-migration/kyc-service
 
 jobs:
-  build-push:
+  build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      sha_tag: ${{ steps.tag.outputs.sha_tag }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      NULLPLATFORM_API_KEY: ${{ secrets.NULLPLATFORM_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: compute tag
-        id: tag
-        run: echo "sha_tag=sha-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+      # nullplatform: el build queda registrado con su commit, rama y run. Si nullplatform falla, el build sigue igual.
+      - name: nullplatform - install CLI
+        continue-on-error: true
+        run: |
+          curl -fsSL https://cli.nullplatform.com/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - uses: docker/login-action@v3
+      - name: nullplatform - build start
+        id: np_build
+        continue-on-error: true
+        run: |
+          np build start --format json > np-build.json
+          echo "id=$(jq -r '.id // empty' np-build.json)" >> "$GITHUB_OUTPUT"
+          echo "application_id=$(jq -r '.application_id // empty' np-build.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute short sha tag
+        id: tag
+        run: |
+          echo "sha7=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=sha-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      # En un tag v*, la imagen de ese commit ya la construyó main: se promueve (mismo digest, se le agrega el tag v*)
+      # en vez de reconstruirla. Si el commit nunca se construyó en main, se construye acá.
+      - name: Promote the image built on main (tag)
+        id: promote
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SRC_TAG: ${{ steps.tag.outputs.sha_tag }}
+          DST_TAG: ${{ github.ref_name }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:$SRC_TAG" --format '{{json .Manifest}}' > manifest.json 2>/dev/null; then
+            digest=$(jq -r '.digest' manifest.json)
+            docker buildx imagetools create -t "$IMAGE:$DST_TAG" "$IMAGE@$digest"
+            echo "promoted=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          else
+            echo "promoted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Las dos arquitecturas: los nodos del cluster son arm64 y los runners de GitHub amd64. Sin esto, la imagen no
+      # tiene la plataforma del nodo y el pod queda en ImagePullBackOff ("no match for platform in manifest").
+      - uses: docker/setup-qemu-action@v3
+        if: steps.promote.outputs.promoted != 'true'
+
+      - name: Build and push
+        id: build
+        if: steps.promote.outputs.promoted != 'true'
+        uses: docker/build-push-action@v6
         with:
+          platforms: linux/amd64,linux/arm64
           context: .
           push: true
           tags: |
-            ghcr.io/demo-org-np-migration/kyc-service:${{ steps.tag.outputs.sha_tag }}
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_tag }}
+            ${{ env.IMAGE }}:latest
 
-  deploy-staging:
-    needs: build-push
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: install kustomize
+      # nullplatform: registra la imagen que ya subió el paso anterior (la misma URL de ghcr, sin copiarla).
+      - name: nullplatform - asset
+        if: steps.np_build.outputs.id != ''
+        continue-on-error: true
         run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
+          jq -nc \
+            --argjson build_id "${{ steps.np_build.outputs.id }}" \
+            --argjson application_id "${{ steps.np_build.outputs.application_id }}" \
+            --arg name "main" \
+            --arg url "${{ env.IMAGE }}:${{ steps.tag.outputs.sha_tag }}" \
+            --arg digest "${{ steps.promote.outputs.digest || steps.build.outputs.digest }}" \
+            '{build_id: $build_id, application_id: $application_id, name: $name, type: "docker-image", url: $url, metadata: {digest: $digest}}' > asset.json
+          np asset create --body asset.json
 
-      - name: set staging image tag
-        working-directory: deploy/overlays/staging
-        run: kustomize edit set image ghcr.io/demo-org-np-migration/kyc-service=ghcr.io/demo-org-np-migration/kyc-service:${{ needs.build-push.outputs.sha_tag }}
+      - name: nullplatform - build status
+        if: always() && steps.np_build.outputs.id != ''
+        continue-on-error: true
+        run: np build update --id "${{ steps.np_build.outputs.id }}" --status "${{ job.status == 'success' && 'successful' || 'failed' }}"
 
-      - name: commit staging overlay
+      # nullplatform: la release que se despliega desde nullplatform. Tag v1.2.3 → 1.2.3; main → pre-release sobre la
+      # última final, con el número de corrida (0.1.4-12.sha.abc1234). El deploy se pide en nullplatform.
+      - name: nullplatform - release
+        if: success() && steps.np_build.outputs.id != ''
+        continue-on-error: true
+        env:
+          BUILD_ID: ${{ steps.np_build.outputs.id }}
+          APP_ID: ${{ steps.np_build.outputs.application_id }}
+          SHA7: ${{ steps.tag.outputs.sha7 }}
+          RUN: ${{ github.run_number }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/overlays/staging/kustomization.yaml
-          git commit -m "chore: staging ${{ needs.build-push.outputs.sha_tag }} [skip ci]" || echo "nothing to commit"
-          git push
-
-  deploy-prod:
-    needs: build-push
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: install kustomize
-        run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
-
-      - name: set prod image tag
-        working-directory: deploy/overlays/prod
-        run: kustomize edit set image ghcr.io/demo-org-np-migration/kyc-service=ghcr.io/demo-org-np-migration/kyc-service:${{ needs.build-push.outputs.sha_tag }}
-
-      - name: commit prod overlay
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/overlays/prod/kustomization.yaml
-          git commit -m "chore: prod ${{ github.ref_name }} [skip ci]" || echo "nothing to commit"
-          git push
+          umask 077
+          token=$(jq -nc '{api_key: env.NULLPLATFORM_API_KEY}' | curl -sf https://api.nullplatform.com/token -H 'Content-Type: application/json' --data-binary @- | jq -r .access_token)
+          printf 'Authorization: Bearer %s\n' "$token" > np-auth.hdr
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            semver="${GITHUB_REF_NAME#v}"
+          else
+            next=$(curl -sf "https://api.nullplatform.com/release?application_id=$APP_ID&limit=200" -H @np-auth.hdr |
+              jq -r '[.results[].semver | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) | split(".") | map(tonumber)] | sort | (last // [0,0,0]) | "\(.[0]).\(.[1]).\(.[2]+1)"')
+            semver="$next-$RUN.sha.$SHA7"
+          fi
+          jq -nc --argjson b "$BUILD_ID" --argjson a "$APP_ID" --arg s "$semver" '{application_id: $a, build_id: $b, semver: $s, status: "active"}' |
+            curl -sf -X POST https://api.nullplatform.com/release -H @np-auth.hdr -H 'Content-Type: application/json' --data-binary @- | jq -c '{id, semver}'
+          rm -f np-auth.hdr
