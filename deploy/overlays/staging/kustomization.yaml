@@ -17,6 +17,7 @@ configMapGenerator:
   - S3_BUCKET_PREFIX=cauri-staging-
   - SQS_QUEUE_PREFIX=staging-
   - LEDGER_CORE_URL=http://ledger-core.staging.svc:8080
+  - NP_TEST_W=w1
   name: kyc-service-config
 
 images:
