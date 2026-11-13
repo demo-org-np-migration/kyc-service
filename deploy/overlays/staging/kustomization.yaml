@@ -23,3 +23,24 @@ images:
 - name: ghcr.io/demo-org-np-migration/kyc-service
   newName: ghcr.io/demo-org-np-migration/kyc-service
   newTag: sha-7d794b9
+replicas:
+- name: kyc-service
+  count: 2
+patches:
+- target:
+    kind: Deployment
+    name: kyc-service
+  patch: |
+    # nullplatform: resources (escrito por nullplatform desde las propiedades del scope)
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kyc-service
+    spec:
+      template:
+        spec:
+          containers:
+            - name: kyc-service
+              resources:
+                requests:
+                  memory: 160Mi
