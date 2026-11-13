@@ -25,7 +25,7 @@ images:
   newTag: sha-7d794b9
 replicas:
 - name: kyc-service
-  count: 2
+  count: 1
 patches:
 - target:
     kind: Deployment
@@ -43,4 +43,4 @@ patches:
             - name: kyc-service
               resources:
                 requests:
-                  memory: 160Mi
+                  memory: 128Mi
